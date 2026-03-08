@@ -5,13 +5,17 @@ import { MapContainer, TileLayer, Marker, useMapEvents, useMap } from 'react-lea
 import L from 'leaflet';
 // CSS moved to layout.tsx for better Next.js compatibility
 
-// Fix for default Leaflet marker icons in Next.js/React
-const DefaultIcon = L.icon({
-    iconUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png',
-    shadowUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png',
-    iconSize: [25, 41],
-    iconAnchor: [12, 41],
-});
+// Icon helper will be initialized inside the component to be SSR safe
+let DefaultIcon: L.Icon;
+if (typeof window !== 'undefined') {
+    DefaultIcon = L.icon({
+        iconUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png',
+        shadowUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png',
+        iconSize: [25, 41],
+        iconAnchor: [12, 41],
+    });
+}
+
 
 interface MapPickerProps {
     center: { lat: number; lng: number };
