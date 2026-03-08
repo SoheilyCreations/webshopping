@@ -2,14 +2,16 @@
 
 import React from 'react';
 import { motion } from 'framer-motion';
-import { ChevronLeft, MapPin, CreditCard, Apple, Receipt, ArrowRight, Loader2 } from 'lucide-react';
+import { ChevronLeft, MapPin, CreditCard, Apple, Receipt, ArrowRight, Loader2, Info, CheckCircle2 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useCart } from '@/lib/CartContext';
-import { products } from '@/lib/mockData';
+import { useProducts } from '@/lib/useProducts';
+import { supabase } from '@/lib/supabase';
 
 export default function CheckoutScreen() {
     const router = useRouter();
-    const { items, totalPrice, discountTotal } = useCart();
+    const { items, totalPrice, discountTotal, clearCart } = useCart();
+    const { products, loading: productsLoading } = useProducts();
     const [address, setAddress] = React.useState<any>(null);
     const [selectedPayment, setSelectedPayment] = React.useState('cod');
     const [isProcessing, setIsProcessing] = React.useState(false);
@@ -25,13 +27,103 @@ export default function CheckoutScreen() {
     const deliveryFee = 250;
     const finalTotal = totalPrice > 0 ? totalPrice + deliveryFee : 0;
 
-    const handlePlaceOrder = () => {
+    const [debugMsg, setDebugMsg] = React.useState<string>('');
+    const [actionError, setActionError] = React.useState<string | null>(null);
+
+    const handlePlaceOrder = async (e?: React.FormEvent) => {
+        if (e) e.preventDefault();
+
+        setActionError(null);
+        setDebugMsg("Step 1: Starting order process...");
+
+        if (items.length === 0) {
+            setActionError("Your cart is empty. Please add products first.");
+            return;
+        }
+        if (!address) {
+            setActionError("Delivery location not confirmed. Please select your address on the map.");
+            return;
+        }
+
         setIsProcessing(true);
-        // Simulate payment processing / server round trip
-        setTimeout(() => {
+
+        try {
+            setDebugMsg("Step 2: Identifying merchant...");
+            const firstItemProduct = products.find(p => p.id === items[0].productId);
+            let shopId = firstItemProduct?.shopId;
+
+            if (!shopId) {
+                const { data: fallbackShop } = await supabase.from('shops').select('id').limit(1).single();
+                shopId = fallbackShop?.id;
+            }
+
+            if (!shopId) {
+                throw new Error("Merchant identification failed. Please refresh and try again.");
+            }
+
+            setDebugMsg("Step 3: Checking inventory...");
+            for (const item of items) {
+                const dbProd = products.find(p => p.id === item.productId);
+                const { data: currentStockData, error: stockFetchError } = await supabase
+                    .from('products')
+                    .select('stock_quantity')
+                    .eq('id', item.productId)
+                    .single();
+
+                if (stockFetchError) throw stockFetchError;
+
+                const currentStock = currentStockData?.stock_quantity || 0;
+                if (currentStock < item.quantity) {
+                    throw new Error(`Limited stock for ${dbProd?.name || 'Item'}. available: ${currentStock}`);
+                }
+
+                const { error: updateError } = await supabase
+                    .from('products')
+                    .update({ stock_quantity: currentStock - item.quantity })
+                    .eq('id', item.productId);
+
+                if (updateError) throw updateError;
+            }
+
+            setDebugMsg("Step 4: Submitting order to Cloud...");
+            const orderPayload = {
+                shop_id: shopId,
+                total_amount: finalTotal,
+                status: 'pending',
+                items: items.map(item => {
+                    const p = products.find(prod => prod.id === item.productId);
+                    return {
+                        product_id: item.productId,
+                        name: p?.name || 'Item',
+                        price: p?.price || 0,
+                        quantity: item.quantity
+                    };
+                })
+            };
+
+            const { error: orderError } = await supabase.from('orders').insert([orderPayload]);
+
+            if (orderError) throw new Error("Database Error: " + orderError.message);
+
+            setDebugMsg("Step 5: Success! Finalizing...");
+            clearCart();
             router.push('/thank-you');
-        }, 1500);
+        } catch (error: any) {
+            console.error("DEBUG ERROR:", error);
+            setActionError(error.message || "System encountered an unexpected error.");
+            setDebugMsg("Process halted due to error.");
+        } finally {
+            setIsProcessing(false);
+        }
     };
+
+    if (productsLoading) {
+        return (
+            <div className="h-screen bg-white flex items-center justify-center">
+                <Loader2 className="w-12 h-12 text-lime animate-spin" />
+            </div>
+        );
+    }
 
     return (
         <div className="h-full bg-light flex flex-col font-sans overflow-hidden">
@@ -43,11 +135,40 @@ export default function CheckoutScreen() {
                 >
                     <ChevronLeft size={24} className="text-black" />
                 </button>
-                <h1 className="text-xl font-extrabold tracking-tight text-black">Checkout</h1>
+                <h1 className="text-xl font-extrabold tracking-tight text-black flex items-center gap-2">
+                    Checkout
+                    <span className="text-[10px] bg-red-500 text-white px-2 py-0.5 rounded-full font-black">STABLE</span>
+                </h1>
                 <div className="w-10 h-10" /> {/* Spacer */}
             </div>
 
             <div className="flex-1 overflow-y-auto hide-scrollbar p-6 flex flex-col gap-6 pb-40">
+                {/* Debug & Error Banner */}
+                {(isProcessing || debugMsg || actionError) && (
+                    <motion.div
+                        initial={{ opacity: 0, scale: 0.9 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        className={`p-5 rounded-[2rem] border-2 shadow-sm ${actionError ? 'bg-red-50 border-red-200 text-red-700' : 'bg-lime/10 border-lime/30 text-lime-800'}`}
+                    >
+                        <div className="flex items-center gap-3">
+                            {isProcessing ? <Loader2 className="animate-spin" size={18} /> : actionError ? <Info size={18} /> : <CheckCircle2 size={18} />}
+                            <span className="font-extrabold text-sm uppercase tracking-tight">
+                                {actionError ? "Processing Failed" : "System Status"}
+                            </span>
+                        </div>
+                        <p className="mt-2 text-xs font-bold leading-relaxed">
+                            {actionError || debugMsg}
+                        </p>
+                        {actionError && (
+                            <button
+                                onClick={() => handlePlaceOrder()}
+                                className="mt-3 px-4 py-2 bg-red-600 text-white text-[10px] font-black uppercase rounded-full shadow-lg"
+                            >
+                                Try Again
+                            </button>
+                        )}
+                    </motion.div>
+                )}
                 {/* Order Summary */}
                 <section>
                     <h2 className="text-lg font-bold text-black mb-3">Order Summary</h2>

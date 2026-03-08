@@ -25,7 +25,8 @@ import {
     Heart
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
-import { categories, products } from '@/lib/mockData';
+import { categories } from '@/lib/mockData';
+import { useProducts } from '@/lib/useProducts';
 import { ProductCard } from '@/components/ui/ProductCard';
 import { Button } from '@/components/ui/Button';
 import { Logo } from '@/components/ui/Logo';
@@ -38,6 +39,7 @@ const IconMap: { [key: string]: any } = {
 export default function HomeScreen() {
     const router = useRouter();
     const { totalItems } = useCart();
+    const { products, loading } = useProducts();
     const [searchQuery, setSearchQuery] = useState('');
     const [activeBanner, setActiveBanner] = useState(0);
 
@@ -50,7 +52,7 @@ export default function HomeScreen() {
     }, []);
 
     // Featured products (top rated)
-    const featuredProducts = products.filter(p => p.rating >= 4.8).slice(0, 5);
+    const featuredProducts = products.filter(p => !p.soldOut).slice(0, 5);
 
     // Banner data
     const banners = [

@@ -12,6 +12,7 @@ export const categories = [
 
 export type Product = {
     id: string;
+    shopId?: string;
     categoryId: string;
     name: string;
     vendor?: string;

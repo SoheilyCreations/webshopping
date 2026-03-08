@@ -1,13 +1,13 @@
 "use client";
 
 import React, { useState } from 'react';
-import { motion } from 'framer-motion';
-import { categories, products } from '@/lib/mockData';
+import { motion, AnimatePresence } from 'framer-motion';
+import { categories } from '@/lib/mockData';
+import { useProducts } from '@/lib/useProducts';
 import { ProductCard } from '@/components/ui/ProductCard';
 import { ChevronLeft, Search, Filter, LayoutGrid, Apple, Leaf, Milk, Croissant, Beef, Cookie, Coffee, Sparkles } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useCart } from '@/lib/CartContext';
-import { AnimatePresence } from 'framer-motion';
 
 const IconMap: { [key: string]: any } = {
     LayoutGrid, Apple, Leaf, Milk, Croissant, Beef, Cookie, Coffee, Sparkles
@@ -16,6 +16,7 @@ const IconMap: { [key: string]: any } = {
 export default function BasketScreen() {
     const router = useRouter();
     const { items, totalPrice, totalItems, discountTotal } = useCart();
+    const { products, loading } = useProducts();
     const [activeCategory, setActiveCategory] = useState(categories[0].id);
     const [isSidebarExpanded, setIsSidebarExpanded] = useState(false);
 

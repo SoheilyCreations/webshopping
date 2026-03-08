@@ -2,7 +2,7 @@
 
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { products } from '@/lib/mockData';
+import { useProducts } from '@/lib/useProducts';
 import { Button } from '@/components/ui/Button';
 import {
     ChevronLeft,
@@ -20,7 +20,8 @@ import {
     Store,
     MessageSquare,
     ThumbsUp,
-    Scale
+    Scale,
+    Loader2
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useCart } from '@/lib/CartContext';
@@ -28,22 +29,50 @@ import { useCart } from '@/lib/CartContext';
 export default function ProductDetailsScreen({ params }: { params: { id: string } }) {
     const router = useRouter();
     const { addItem, totalItems } = useCart();
-    const product = products.find((p) => p.id === params.id) || products[0];
+    const { products, loading } = useProducts();
 
-    // Weight selection state
-    const [selectedWeight, setSelectedWeight] = useState(product.weightOptions?.[0]?.label || product.weight);
+    // Find the current product
+    const product = products.find((p) => p.id === params.id);
 
-    // Find price based on selected weight
-    const currentWeightOption = product.weightOptions?.find(o => o.label === selectedWeight);
-    const activePrice = currentWeightOption ? currentWeightOption.price : product.price;
-    const activeOriginalPrice = currentWeightOption ? currentWeightOption.originalPrice : product.originalPrice;
-
-    const [activeImage, setActiveImage] = useState(product.image);
+    // Weight selection state - Move hooks to be conditional or after checks?
+    // React hooks MUST be called at the top level. So we use placeholders if loading.
+    const [selectedWeight, setSelectedWeight] = useState('');
+    const [activeImage, setActiveImage] = useState('');
     const [isDetailsOpen, setIsDetailsOpen] = useState(true);
     const [isReviewsOpen, setIsReviewsOpen] = useState(false);
     const [quantity, setQuantity] = useState(1);
     const [isFavorite, setIsFavorite] = useState(false);
     const [userRating, setUserRating] = useState(0);
+
+    // Sync state when product loads
+    React.useEffect(() => {
+        if (product) {
+            setSelectedWeight(product.weightOptions?.[0]?.label || product.weight);
+            setActiveImage(product.image);
+        }
+    }, [product]);
+
+    if (loading) {
+        return (
+            <div className="h-full bg-white flex items-center justify-center">
+                <Loader2 className="w-12 h-12 text-lime animate-spin" />
+            </div>
+        );
+    }
+
+    if (!product) {
+        return (
+            <div className="h-full bg-white flex flex-col items-center justify-center p-6 text-center">
+                <h2 className="text-2xl font-black text-black mb-4">Product Not Found</h2>
+                <Button onClick={() => router.push('/basket')}>Back to Shop</Button>
+            </div>
+        );
+    }
+
+    // Find price based on selected weight
+    const currentWeightOption = product.weightOptions?.find(o => o.label === selectedWeight);
+    const activePrice = currentWeightOption ? currentWeightOption.price : product.price;
+    const activeOriginalPrice = currentWeightOption ? currentWeightOption.originalPrice : product.originalPrice;
 
     const handleAddToCart = () => {
         addItem(product.id, quantity, selectedWeight);

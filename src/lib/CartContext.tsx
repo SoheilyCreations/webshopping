@@ -1,7 +1,7 @@
 "use client";
 
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import { products } from './mockData';
+import { useProducts } from './useProducts';
 
 type CartItem = {
     productId: string;
@@ -19,12 +19,14 @@ type CartContextType = {
     discountTotal: number;
     totalPrice: number;
     getQuantity: (productId: string, weight?: string) => number;
+    clearCart: () => void;
 };
 
 const CartContext = createContext<CartContextType | undefined>(undefined);
 
 export function CartProvider({ children }: { children: React.ReactNode }) {
     const [items, setItems] = useState<CartItem[]>([]);
+    const { products } = useProducts();
 
     const addItem = (productId: string, qty: number, weight?: string) => {
         setItems((prev) => {
@@ -86,6 +88,10 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
     const discountTotal = subtotal - totalPrice;
     const totalItems = items.reduce((acc, curr) => acc + curr.quantity, 0);
 
+    const clearCart = () => {
+        setItems([]);
+    };
+
     return (
         <CartContext.Provider value={{
             items,
@@ -96,7 +102,8 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
             totalItems,
             subtotal,
             discountTotal,
-            totalPrice
+            totalPrice,
+            clearCart
         }}>
             {children}
         </CartContext.Provider>
